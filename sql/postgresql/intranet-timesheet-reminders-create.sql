@@ -53,9 +53,9 @@ begin
 		        id   		integer
                 			primary key,
 			event_id	integer
-					constraint im_timesheet_reminders_stats_event_fk  references acs_events,
+					constraint im_timesheet_reminders_stats_event_fk references acs_events,
 			triggered	timestamp,
-			notes		text;
+			notes		text
 		);
 		ALTER TABLE im_timesheet_reminders_stats ALTER COLUMN id SET DEFAULT NEXTVAL('im_timesheet_reminders_stats_seq');
         END IF;
