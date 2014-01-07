@@ -91,45 +91,36 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors ENTERING" 
     set from_email [parameter::get -package_id [apm_package_id_from_key acs-kernel] -parameter "HostAdministrator" -default ""]
 
-    # get all active employees, add dummy record for easy looping  
+    # get all active employees; add dummy record for easy looping  
     set sql "
-    	select distinct
-	    m.manager_id,
-	    im_name_from_user_id(m.manager_id) as manager_name,
-	    im_email_from_user_id(m.manager_id) as manager_email,
-            acs_lang_get_locale_for_user(m.manager_id) as manager_locale,
-	    employee_id,
-	    coalesce(e.availability,100) as availability,
-	    im_name_from_user_id(e.employee_id) as employee_name
-	 from
-	     acs_objects o,
-	     im_cost_centers m
-	     LEFT JOIN (
-	     	    select 
-			e.*
-		    from 
-		    	im_employees e,
-			cc_users u
-	       	    where
-			e.employee_id = u.user_id and
-	       		u.member_state = 'approved'
-	     ) e ON (e.department_id = m.cost_center_id)
-	  where
-	      o.object_id = m.cost_center_id
-	  UNION  
-	      select 
-	      	     999999999 as manager_id,
-		     '' as manager_name,
-		     '' as manager_email,
-                     '' as manager_locale,
-		     999999999 as employee_id,
-		     0 as availability,
-		     '' as employee_name
-	      from dual 
-	  order by 
-	      manager_id
+    select 
+    	e.supervisor_id as manager_id,
+	im_name_from_user_id(e.supervisor_id) as manager_name,
+	im_email_from_user_id(e.supervisor_id) as manager_email,
+	acs_lang_get_locale_for_user(e.supervisor_id) as manager_locale,
+	e.employee_id,
+	coalesce(e.availability,100) as availability,
+	im_name_from_user_id(e.employee_id) as employee_name
+    from
+	im_employees e,
+	cc_users u
+    where
+	e.employee_id = u.user_id 
+	    and u.member_state = 'approved' 
+	    and e.supervisor_id IS NOT NULL
+    UNION
+	select
+		999999999 as manager_id,
+		'' as manager_name,
+		'' as manager_email,
+		'' as manager_locale,
+		999999999 as employee_id,
+		0 as availability,
+		'' as employee_name
+	from dual
+    order by
+    	  manager_id; 
     "
-
     set old_manager_id -1
     set old_manager_email ""
     set mail_body ""
