@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<message_catalog package_key="intranet-timesheet-reminders" locale="en_US" charset="ISO-8859-1">
+  <msg key="Days">day(s)</msg>
+  <msg key="Difference">Difference"</msg>
+  <msg key="HoursAbrev">h</msg>
+  <msg key="HoursLogged">Hours logged</msg>
+  <msg key="Links">Links</msg>
+  <msg key="ReminderEmail">Hours logged for  %period_start_date% - %period_end_date%</msg>
+  <msg key="ReminderSubjectWeeklyReminder">Weekly TS Reminder</msg>
+  <msg key="ReminderSubjectMonthlyReminder">Monthly TS Reminder</msg>
+  <msg key="Target">Target</msg>
+  <msg key="Total">Total</msg>
+  <msg key="ViewDetails">View Details</msg>
+</message_catalog>
