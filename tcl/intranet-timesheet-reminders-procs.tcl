@@ -336,7 +336,7 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
 	set total_target_hours [expr $total_target_hours + $target_hours]
 	set total_hours_absences [expr $total_hours_absences + $hours_absences]
 
-	set report_url "$system_url/intranet-reporting/timesheet-monthly-hours-absences-reminder?user_id=$key&$start_date=$period_start_date&$end_date=$period_end_date"
+	set report_url "$system_url/intranet-reporting/timesheet-monthly-hours-absences-reminder?user_id=$key&start_date=$period_start_date&end_date=$period_end_date"
 
 	append user_record_html "
 	       <tr>
