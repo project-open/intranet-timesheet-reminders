@@ -126,18 +126,18 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
     set mail_body ""
 
     db_foreach r $sql {
-	if { -1 != $old_manager_id } {
+	if { -1 != $old_manager_id && $old_manager_id != "999999999" } {
 	    # Check for change of manager_id 
 	    if { $manager_id != $old_manager_id } {
-		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ---- NEW MANAGER FOUND: $manager_name ---------- Old: $old_manager_email"
+
+		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ------------------------------------------------------------------------ "
+		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ---- NEW MANAGER FOUND: $manager_name / Old: $old_manager_email "
+		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ------------------------------------------------------------------------ "
 		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: Sending mail to: $old_manager_email; mail_body_user_records: [array get mail_body_user_records]"
 
-		append send_protocol "$send_protocol, $old_manager_email"
-		
 		# build mail_body 
 		set mail_body [im_timesheet_send_reminders_build_mailbody $period_start_date $period_end_date $manager_id $manager_name $manager_locale [array get mail_body_user_records]]
 
-		# sending email 
 		acs_mail_lite::send \
 		    -send_immediately \
 		    -to_addr $old_manager_email \
@@ -146,6 +146,8 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 		    -body $mail_body \
 		    -extraheaders "" \
 		    -mime_type "text/html"
+
+		# append send_protocol "to_addr: $old_manager_email, from_addr: $from_email, body: $mail_body \n\n"
 
 		# reset manager_id & email 
 		set old_manager_id $manager_id
@@ -159,7 +161,7 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 	    set old_manager_id $manager_id
 	    set old_manager_email $manager_email
 	}
-
+	
 	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: Now evaluating: manager_name: $manager_name, employee_name: $employee_name"
 
 	# Get amount of hours accounted for 
@@ -168,9 +170,7 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 	} else {
 	    set mail_body_user_records($employee_id) [list $employee_name [im_user_absences_hours_accounted_for $employee_id $availability $period_start_date $period_end_date]]
 	}
-
 	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: mail_body_user_records($employee_id): $mail_body_user_records($employee_id)"
-
     }
 
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors LEAVING"
@@ -316,12 +316,14 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     set total_target_hours 0 
     set total_hours_logged 0 
     set total_hours_absences 0 
+    set url_user_ids [list]
 
     # array set mail_body_user_records $user_records_list 
     foreach {key value} $user_records_list {
 
 	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: value(0): [lindex $value 0] value(1): [lindex $value 1]"
 
+	lappend url_user_ids $key
 	set employee_name [lindex $value 0]
 
 	# Clearity before efficiency 
@@ -340,15 +342,17 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
 
 	append user_record_html "
 	       <tr>
-			<td>$employee_name</td>
-			<td>$hours_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]<br>$absence_str</td>
-			<td>$hours_logged</td><td>$target_hours [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
-			<td>[expr ($hours_absences + $hours_logged) - $target_hours] [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
-			<td><a href='$report_url'>[lang::message::lookup "" intranet-timesheet-reminders.ViewDetails "View Details"]</a></td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$employee_name</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]<br>$absence_str</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_logged</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$target_hours [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\">[expr ($hours_absences + $hours_logged) - $target_hours] [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\"><a href='$report_url'>[lang::message::lookup "" intranet-timesheet-reminders.ViewDetails "View Details"]</a></td>
 		</tr>"
     }
 
     set total_diff [expr ($total_hours_logged + $total_hours_absences) - $total_target_hours]
+    set url_all_users "$system_url/intranet-reporting/timesheet-monthly-hours-absences-reminder?user_id=[join $url_user_ids "&user_id="]&start_date=$period_start_date&end_date=$period_end_date"
 
     return "
     <html> 
@@ -356,23 +360,23 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     <body>   
     <br/><br/>
     <!-- [lang::message::lookup "" intranet-timesheet-reminders.ReminderEmail "Hours logged for  %period_start_date% - %period_end_date%\n"]-->
-    <table cellpadding=\"3\" cellspacing=\"3\" border=\"0\">
+    <table cellpadding=\"3\" cellspacing=\"3\" border=\"0\" style=\"border-collapse:collapse;\">
     	<tr>
-		<td style=\"font-weight:bold\">&nbsp;</td>
-		<td style=\"font-weight:bold\">[lang::message::lookup "" intranet-timesheet2.Absences "Absences"]</td>
-		<td style=\"font-weight:bold\">[lang::message::lookup "" intranet-timesheet-reminders.HoursLogged "Hours logged"]</td>
-		<td style=\"font-weight:bold\">[lang::message::lookup "" intranet-timesheet-reminders.Target "Target"]</td>
-		<td style=\"font-weight:bold\">[lang::message::lookup "" intranet-timesheet-reminders.Difference " Difference"]</td>
-		<td style=\"font-weight:bold\">[lang::message::lookup "" intranet-timesheet-reminders.Links "Links"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-core.EmployeeName "Employee Name"]</td>
+    		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.Absences "Absences"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.HoursLogged "Hours logged"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.Target "Target"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-core.Difference " Difference"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-.Links "Links"]</td>
 	</tr>
         $user_record_html
 	<tr>
-		<td style=\"font-weight:bold\">[lang::message::lookup "" intranet-timesheet-reminders.Total "Total"]</td>
-		<td>&nbsp;</td>
-		<td style=\"font-weight:bold\">$total_hours_logged</td>
-		<td style=\"font-weight:bold\">$total_target_hours</td>
-		<td style=\"font-weight:bold\">$total_diff</td>
-		<td>&nbsp;</td>
+		<td style=\"font-weight:bold;border: 1px solid black;\">[lang::message::lookup "" intranet-timesheet-reminders.Total "Total"]</td>
+		<td style=\"font-weight:bold;border: 1px solid black;\">&nbsp;</td>
+		<td style=\"font-weight:bold;border: 1px solid black;\">$total_hours_logged</td>
+		<td style=\"font-weight:bold;border: 1px solid black;\">$total_target_hours</td>
+		<td style=\"font-weight:bold;border: 1px solid black;\">$total_diff</td>
+		<td style=\"font-weight:bold;border: 1px solid black;\"><a href='$url_all_users'>[lang::message::lookup "" intranet-timesheet-reminder.ShowDetailsForAllUsers "Show details for all users"]</a></td>
 	</tr>
      </table>
     </body>
@@ -380,4 +384,3 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     "
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: LEAVING"
 }
-
