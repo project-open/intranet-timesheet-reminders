@@ -33,7 +33,7 @@ ad_page_contract {
 }
 
 
-set test_mode_p 1 
+set test_mode_p 0 
 
 ns_log Notice "subject='$subject'"
 ns_log Notice "message_mime_type='$message_mime_type'"
