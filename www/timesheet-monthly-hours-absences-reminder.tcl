@@ -19,7 +19,6 @@ ad_page_contract {
     { output_format "html" }
     { user_id:integer,multiple 0  }
     { project_id 0 }
-    { project_status_id 76 }
     { customer_id 0 }
     { daily_hours 0 }
     { different_from_project_p "" }
@@ -31,7 +30,7 @@ ad_page_contract {
 # Report specific procs
 # ------------------------------------------------------------
 
-ad_proc -private im_report_render_absences {
+ad_proc -private im_report_render_custom {
     -group_def
     -last_value_array_list
     -start_date 
@@ -41,7 +40,7 @@ ad_proc -private im_report_render_absences {
     {-row_class ""}
     {-cell_class ""}
     {-level_of_detail 999}
-    {-debug 0}
+    {-debug 1}
     {-absences_list ""}
 } {
     Renders the footer stack of a single row in a project-open report. 
@@ -63,9 +62,9 @@ ad_proc -private im_report_render_absences {
 
     if {$debug} { ns_log Notice "render_footer:" }
     array set last_value_array $last_value_array_list
-    if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_absences:: ==============================================================" }
-    if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_absences:: group_def: $group_def" }
-    if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_absences:: last_value_array_list: $last_value_array_list" }
+    if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom:: ==============================================================" }
+    if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom:: group_def: $group_def" }
+    if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom:: last_value_array_list: $last_value_array_list" }
 
     # Split group_def and assign to an array for reverse access
     set group_level 1
@@ -109,7 +108,7 @@ ad_proc -private im_report_render_absences {
 	# -------------------------------------------------------
 
 	# Determine month 
-	if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_absences::group_var: $group_var" }
+	if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom::group_var: $group_var" }
 
 	# -------------------------------------------------------
 	# Write out absences to an array
@@ -125,7 +124,7 @@ ad_proc -private im_report_render_absences {
 	db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_date(:end_date_plus_one,'yyyy-mm-dd')) as r_date from dual" {
 	    set date_ansi_key $r_date
 	    if { [info exists absence_arr($date_ansi_key)] } {
-		if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_absences::found absence" }
+		if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom::found absence" }
                     # Evaluate absence amount
                     # absence_arr($date_ansi_key) is list of lists
                     set total_absence 0
@@ -149,7 +148,7 @@ ad_proc -private im_report_render_absences {
 		}
 		set total_sum_absences [expr $total_sum_absences + [expr $total_absence + 0]]
 	    } else {
-		if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_absences::did not found absence in array" }
+		if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom::did not found absence in array" }
 		set value "&nbsp;"
 	    }
 	    lappend absence_line $value
@@ -174,7 +173,7 @@ ad_proc -private im_report_render_absences {
 }
 
 
-ad_proc -private im_report_display_absences {
+ad_proc -private im_report_display_absence_line {
     -group_def
     -footer_array_list
     -last_value_array_list
@@ -255,7 +254,6 @@ ad_proc -private im_report_display_absences {
     # Restore the group_def destroyed by the previous while loop
     set group_def $group_def_org
 
-
     # -------------------------------------------------------
     # Calculate the maximum level in the report definition
     set max_group_level 1
@@ -301,6 +299,7 @@ ad_proc -private im_report_display_absences {
 	}
 
 	foreach field $absence_line {
+	    ns_log Notice "timesheet-monthly-hours-absences-reminder::display_footer:absence_line: $absence_line"
 	    im_report_render_cell -encoding $encoding -output_format $output_format -cell $field -cell_class $cell_class
 	}
 
@@ -380,6 +379,7 @@ set im_absence_type_bankholiday 5005
 set im_absence_type_training 5004
 
 set todays_date [db_string todays_date "select to_char(now(), :date_format) from dual" -default ""]
+set top_project_name_no_record [lang::message::lookup "" intranet-timesheet-reminder.NoHoursFound "User did not log hours"]
 
 # ------------------------------------------------------------
 # Validate Dates 
@@ -476,9 +476,8 @@ if {"" != $customer_id && 0 != $customer_id} {
 	 lappend criteria "p.company_id = :customer_id" 
 }
 
-if { ![empty_string_p $project_status_id] && $project_status_id > 0 } {
-    lappend criteria "p.project_status_id in ([join [im_sub_categories $project_status_id] ","])"
-}
+# We always show ALL logged hours, except the one logged on DELETED projects   
+lappend criteria "p.project_status_id <> [im_project_status_deleted]"    
 
 # At this point we know that there's at least one user to show ...
 lappend criteria "h.user_id in ([join $user_id ", "])"
@@ -507,11 +506,11 @@ if {"" != $outer_where} { set outer_where "and $outer_where" }
 
 set day_placeholders ""
 set day_header ""
+set outer_sql_list [list]
+set outer_sql_list_absences [list]
 
 db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_date(:end_date_plus_one,'yyyy-mm-dd')) as r_date from dual" {
-    
     set day_mm_dd "[string range $r_date 5 6][string range $r_date 8 9]"
-
     lappend inner_sql_list "sum((select sum(hours) from im_hours h where
             h.user_id = s.user_id
             and h.project_id in (
@@ -528,8 +527,10 @@ db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_d
         )) as day$day_mm_dd
     "
     lappend outer_sql_list "
-        sum(CASE WHEN day$day_mm_dd <= $daily_hours THEN null ELSE day$day_mm_dd
-        END) as day$day_mm_dd
+        sum(CASE WHEN day$day_mm_dd <= $daily_hours THEN null ELSE day$day_mm_dd END) as day$day_mm_dd
+    "
+    lappend outer_sql_absences_list "
+        0 as day$day_mm_dd
     "
     append day_placeholders "\\" "\$day$day_mm_dd "
 
@@ -542,9 +543,9 @@ db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_d
     append day_header " "
 }
 
-
 set inner_sql [join $inner_sql_list ", "]
 set outer_sql [join $outer_sql_list ", "]
+set outer_sql_absences [join $outer_sql_absences_list ", "]
 
 set sql "
 	select
@@ -604,7 +605,7 @@ set sql "
         	                h.project_id = p.project_id
                 	        and h.user_id = u.user_id
                         	and h.day >= to_date('$start_date', 'YYYY-MM-DD')
-	                        and h.day < to_date('$end_date', 'YYYY-MM-DD')
+	                        and h.day <= to_date('$end_date', 'YYYY-MM-DD')
         	                $where_clause
                 	order by
                         	p.project_id,
@@ -632,13 +633,43 @@ set sql "
 		sub_project_id,
 		sub_project_name,
 		sub_project_nr
+
+	UNION
+		-- all users that did not log hours
+		-- this is required to show absences  
+                select
+                        u.user_id,
+                        im_name_from_user_id(u.user_id) as user_name,
+                        0 as top_parent_project_id,
+                        '$top_project_name_no_record' as top_project_name,
+                        '' as top_project_nr,
+                        0 as sub_project_id,
+                        '' as sub_project_name,
+                        '' as sub_project_nr,
+                        $outer_sql_absences
+                 from
+			(select user_id from users where user_id in ([join $user_id ", "])) u 
+		 where 
+			user_id not in (
+			select 
+			     h.user_id 
+			from 
+			     im_hours h,
+			     im_projects p 
+			where
+			     h.project_id = p.project_id  
+			     and h.day >= to_date('$start_date', 'YYYY-MM-DD')
+			     and h.day <= to_date('$end_date', 'YYYY-MM-DD')
+			     and p.project_status_id <> [im_project_status_deleted] 
+			)
 	order by
               user_id,
 	      top_parent_project_id
 "
 
 # This string represents a project/sub project
-set line_str " \"\" \"<b><a href=\$project_url\$top_parent_project_id>\${top_project_nr} - \${top_project_name}</a></b>\" \"<b><a href=\$project_url\$sub_project_id>\${sub_project_nr} - \${sub_project_name}</a></b>\" "
+# set line_str " \"\" \"<b><a href=\$project_url\$top_parent_project_id>\${top_project_nr} - \${top_project_name}</a></b>\" \"<b><a href=\$project_url\$sub_project_id>\${sub_project_nr} - \${sub_project_name}</a></b>\" "
+set line_str " \"\" \"<b>\${top_project_nr} - \${top_project_name}</b>\" \"<b>\${sub_project_nr} - \${sub_project_name}</b>\" "
 append line_str $day_placeholders "\$number_hours_project_ctr" 
 
 set no_empty_columns [expr $duration+1]
@@ -835,9 +866,9 @@ set number_hours_project_ctr 0
 # ns_return 1 text/html "start_date: $start_date, end_date_plus_one: $end_date_plus_one"
 #ad_return_complaint xx ee
 db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_date(:end_date_plus_one,'yyyy-mm-dd')) as r_date from dual" {
-	set day_mm_dd "[string range $r_date 5 6][string range $r_date 8 9]"
-	set month_arr($day_mm_dd) 0
-	set ts_hours_arr($day_mm_dd) ""
+    set day_mm_dd "[string range $r_date 5 6][string range $r_date 8 9]"
+    set month_arr($day_mm_dd) 0
+    set ts_hours_arr($day_mm_dd) ""
 }
 
 #------------------------
@@ -845,10 +876,12 @@ db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_d
 #------------------------
 
 db_foreach sql $sql {
+
+        set number_days_ctr 0
         set number_days_ctr 0
         set number_hours_ctr 0
 
-	im_report_display_absences \
+	im_report_display_absence_line \
 	    -output_format $output_format \
 	    -group_def $report_def \
 	    -footer_array_list $absence_array_list \
@@ -948,7 +981,7 @@ db_foreach sql $sql {
 	}
 
 	im_report_update_counters -counters $counters
-
+	
 	set last_value_list [im_report_render_header \
 	    -output_format $output_format \
 	    -group_def $report_def \
@@ -957,8 +990,8 @@ db_foreach sql $sql {
 	    -row_class $class \
 	    -cell_class $class
         ]
-	
-        set absence_array_list [im_report_render_absences \
+		
+        set absence_array_list [im_report_render_custom \
 	    -output_format $output_format \
 	    -group_def $report_def \
 	    -last_value_array_list $last_value_list \
@@ -980,8 +1013,7 @@ db_foreach sql $sql {
         ]
 }
 
-
-im_report_display_absences \
+im_report_display_absence_line \
        -output_format $output_format \
        -group_def $report_def \
        -footer_array_list $absence_array_list \
