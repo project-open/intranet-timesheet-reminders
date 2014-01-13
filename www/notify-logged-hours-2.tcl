@@ -30,10 +30,8 @@ ad_page_contract {
     { from_email ""}
     { start_date "" }
     { end_date "" }
+    { test_mode_p "" }
 }
-
-
-set test_mode_p 0 
 
 ns_log Notice "subject='$subject'"
 ns_log Notice "message_mime_type='$message_mime_type'"
@@ -139,7 +137,7 @@ foreach rec $email_list {
 		-subject $subject \
 		-body $message
 	} else {
-	    append test_output "to_addr: [lindex $rec 1], from_addr: $sender_email, subject: $subject, message: $message"
+	    append test_output "to_addr: [lindex $rec 1]<br>from_addr: $sender_email<br>subject: $subject<br>message: $message <br>*******<br>"
 	} 
     } errmsg]} {
         ns_log Error "member-notify: Error sending to \"$email\": $errmsg"
