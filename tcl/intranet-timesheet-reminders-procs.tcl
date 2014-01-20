@@ -68,7 +68,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 	    set period_end_date [clock format [clock scan {-1 day} -base [clock scan {$start_date}] ] -format "%Y-%m-%d"] 	    
 	}
 
-	set send_protocol [im_timesheet_send_reminders_to_supervisors($period_start_date,$period_end_date)]
+	set send_protocol [im_timesheet_send_reminders_to_supervisors $period_start_date $period_end_date 0]
 	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, notes) values (:event_id, now(), $send_protocol)"
 	incr ctr
     }
@@ -82,6 +82,8 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 ad_proc -public im_timesheet_send_reminders_to_supervisors {
     period_start_date
     period_end_date
+    do_not_send_email_p
+    
 } {
     Sends email reminders to supervisors
 } {
@@ -138,16 +140,18 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 		# build mail_body 
 		set mail_body [im_timesheet_send_reminders_build_mailbody $period_start_date $period_end_date $manager_id $manager_name $manager_locale [array get mail_body_user_records]]
 
-		acs_mail_lite::send \
-		    -send_immediately \
-		    -to_addr $old_manager_email \
-		    -from_addr $from_email \
-		    -subject  "[lang::message::lookup "" intranet-timesheet-reminders.ReminderSubjectWeeklyReminder "Weekly TS Reminder"]: $period_start_date - $period_end_date" \
-		    -body $mail_body \
-		    -extraheaders "" \
-		    -mime_type "text/html"
-
-		# append send_protocol "to_addr: $old_manager_email, from_addr: $from_email, body: $mail_body \n\n"
+		if { !$do_not_send_email_p } {
+		    acs_mail_lite::send \
+			-send_immediately \
+			-to_addr $old_manager_email \
+			-from_addr $from_email \
+			-subject  "[lang::message::lookup "" intranet-timesheet-reminders.ReminderSubjectWeeklyReminder "Weekly TS Reminder"]: $period_start_date - $period_end_date" \
+			-body $mail_body \
+			-extraheaders "" \
+			-mime_type "text/html"
+		} else {
+		    append send_protocol "to_addr: $old_manager_email, from_addr: $from_email, body: $mail_body \n\n"
+		}
 
 		# reset manager_id & email 
 		set old_manager_id $manager_id
@@ -174,9 +178,12 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
     }
 
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors LEAVING"
-    return $send_protocol
+    if { !$do_not_send_email_p } {
+	return $send_protocol
+    } else {
+	ns_return 1 text/html $send_protocol
+    }
 }
-
 
 # This function should become part of the TS Module 
 ad_proc -public im_user_absences_hours_accounted_for {
@@ -248,7 +255,7 @@ ad_proc -public im_user_absences_hours_accounted_for {
     set absences_str "" 
     db_foreach r $sql {
 	# Build String 
-	append absences_str "<a href='$system_url/intranet-timesheet2/absences/new?form_mode=display&absence_id=$absence_id'>[im_category_from_id $absence_type_id]</a>: $duration_days [lang::message::lookup "" intranet-timesheet-reminders.Days "day(s)"]</a><br>" 
+	append absences_str "<a href='${system_url}intranet-timesheet2/absences/new?form_mode=display&absence_id=$absence_id'>[im_category_from_id $absence_type_id]</a>: $duration_days [lang::message::lookup "" intranet-timesheet-reminders.Days "day(s)"]</a><br>" 
 	# Evaluate hours to add 
         if { $absence_type_id == [im_user_absence_type_bank_holiday] || $absence_type_id == [im_user_absence_type_vacation] } {
             # Daily absences
@@ -307,7 +314,7 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     user_records_list (TargetHours HoursLogged HoursAbsences) 
 } {
     set system_url [parameter::get -package_id [apm_package_id_from_key acs-kernel] -parameter "SystemURL" -default ""]
-    set link "/intranet-reporting/timesheet-monthly-hours-absences"
+    set link "/intranet-timesheet-reminders/timesheet-monthly-hours-absences"
 
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: ENTERING period_start_date: $period_start_date, period_end_date: $period_end_date, manager_name: $manager_name"
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: user_records_list: $user_records_list"
@@ -338,7 +345,7 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
 	set total_target_hours [expr $total_target_hours + $target_hours]
 	set total_hours_absences [expr $total_hours_absences + $hours_absences]
 
-	set report_url "$system_url/intranet-reporting/timesheet-monthly-hours-absences-reminder?user_id=$key&start_date=$period_start_date&end_date=$period_end_date"
+	set report_url "${system_url}intranet-timesheet-reminders/timesheet-monthly-hours-absences-reminder?user_id=$key&start_date=$period_start_date&end_date=$period_end_date"
 
 	append user_record_html "
 	       <tr>
@@ -352,7 +359,7 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     }
 
     set total_diff [expr ($total_hours_logged + $total_hours_absences) - $total_target_hours]
-    set url_all_users "$system_url/intranet-reporting/timesheet-monthly-hours-absences-reminder?user_id=[join $url_user_ids "&user_id="]&start_date=$period_start_date&end_date=$period_end_date"
+    set url_all_users "${system_url}/intranet-timesheet-reminders/timesheet-monthly-hours-absences-reminder?user_id=[join $url_user_ids "&user_id="]&start_date=$period_start_date&end_date=$period_end_date"
 
     return "
     <html> 
