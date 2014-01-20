@@ -29,53 +29,67 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
     set interval [parameter::get -package_id [apm_package_id_from_key intranet-timesheet-reminders] -parameter "Interval" -default "monthly"]
     set set_off [parameter::get -package_id [apm_package_id_from_key intranet-timesheet-reminders] -parameter "SetOff" -default 0]
 
-    # Consider all timespans of the last 24h 
-    set frame_start_date [clock format [clock seconds] -format "%Y-%m-%d %H:%M:%S"]
+    # Consider all timespans of the last 24h. This way we limit the amount of emails that will be send out in case of an application or configuration error. 
+    # By substracting the 'set-off' we simulate an earlier date 
+
+    if {[catch {
+	set frame_start_date [clock format [expr [clock seconds] - $set_off] -format "%Y-%m-%d %H:%M:%S"]    
+    } err_msg]} {
+	global errorInfo
+	ns_log Error "Error in intranet-timesheet-reminders-procs.tcl - Not able to calculate start_date.\n $errorInfo "
+	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered,timespan_found_p,notes) values (null, now(),0,'Error calculating start_date, $errorInfo')"
+	return
+    }
     set frame_end_date [clock format [clock scan {-1 days} -base [clock scan $frame_start_date] ] -format "%Y-%m-%d %H:%M:%S"]
 
-    # Check if reminders haven't been sent yet for events found  
     set sql "
 	select 
-		i.start_date,
-		e.*
+		to_char(i.start_date,'yyyy-mm-dd HH24:MI') as start_date,
+		e.name,
+		e.event_id,
+		i.interval_id
 	from 
 		acs_events e, 
 		timespans t,
-		time_intervals i,
-		im_timesheet_reminders_stats stats
+		time_intervals i
 	where 
 		t.interval_id = i.interval_id 
 		and e.timespan_id = t.timespan_id
-		and stats.event_id <> e.event_id 
-		and i.start_date between :frame_start_date and :frame_end_date
-		and e.event_id not in (select event_id from im_timesheet_reminders_stats) 
-		and (e.name = 'Weekly Email Reminder' OR e.name = 'Monthly Email Reminder') 
+		and i.start_date between :frame_end_date and :frame_start_date
+		and (e.name = 'Weekly Email Reminders' OR e.name = 'Monthly Email Reminders') 
+		and e.event_id not in (select event_id from im_timesheet_reminders_stats where timespan_found_p is true) 
     " 
 
-    set ctr 0 
+    set period_list [list]
+
     db_foreach r $sql {
-
-	# ToDo: Include a check for "set off" 
-
 	# Calcluate period 
 	if { "Weekly Email Reminder" == $name } {
 	    # Hours from the last 7 days, starting start_date-1  
-	    set period_start_date [clock format [clock scan {-1 days} -base [clock scan {$start_date}] ] -format "%Y-%m-%d"]
-	    set period_end_date [clock format [clock scan {-8 days} -base [clock scan {$start_date}] ] -format "%Y-%m-%d"] 
+	    set period_start_date [clock format [clock scan {-1 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
+	    set period_end_date [clock format [clock scan {-8 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"] 
 	} else {
 	    # Monthly reminders - Hours for last month 
-	    set period_start_date [clock format [clock scan {-1 month} -base [clock scan {$start_date}] ] -format "%Y-%m-%d"]
-	    set period_end_date [clock format [clock scan {-1 day} -base [clock scan {$start_date}] ] -format "%Y-%m-%d"] 	    
+	    set period_start_date [clock format [clock scan {-1 month} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
+	    set period_end_date [clock format [clock scan {-1 day} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]   
 	}
-
-	set send_protocol [im_timesheet_send_reminders_to_supervisors $period_start_date $period_end_date 0]
-	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, notes) values (:event_id, now(), $send_protocol)"
-	incr ctr
+	lappend period_list [list $period_start_date $period_end_date $interval_id $event_id]
     }
 
-    # Write a rec to track execution 
-    if { 0 == $ctr } {
-	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered) values (null, now())"
+    # Prevent spamming - avoid sending multiple reminders when more than one period is found 
+    if { 0 == [llength $period_list] } {
+	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p) values (null, now(), false)"
+    } else {
+	# Send for first period found
+	set send_protocol [im_timesheet_send_reminders_to_supervisors [lindex [lindex $period_list 0] 0] [lindex [lindex $period_list 0] 1] 1]
+	set event_id_send [lindex [lindex $period_list 0] 3]
+	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values (:event_id_send, now(), true, :send_protocol)"
+
+	# Keep track of all interval_id's no reminder had been sent for and mark them
+	set period_list [lreplace $period_list 0 0]; # Remove element already handled
+	foreach element $period_list {
+	    db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values ([lindex $element 3], now(), true, 'skipped, reminder already send (event_id: $event_id_send)')"
+	}
     }
 }
 
@@ -108,8 +122,8 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 	cc_users u
     where
 	e.employee_id = u.user_id 
-	    and u.member_state = 'approved' 
-	    and e.supervisor_id IS NOT NULL
+	and u.member_state = 'approved' 
+	and e.supervisor_id IS NOT NULL
     UNION
 	select
 		999999999 as manager_id,
