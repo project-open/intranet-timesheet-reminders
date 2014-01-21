@@ -124,27 +124,26 @@ ad_proc -private im_report_render_custom {
 	db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_date(:end_date_plus_one,'yyyy-mm-dd')) as r_date from dual" {
 	    set date_ansi_key $r_date
 	    if { [info exists absence_arr($date_ansi_key)] } {
-		if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom::found absence" }
-                    # Evaluate absence amount
-                    # absence_arr($date_ansi_key) is list of lists
-                    set total_absence 0
+		if {$debug} { ns_log NOTICE "intranet-reporting-procs::im_report_render_custom:: Found absence for day: $date_ansi_key: $absence_arr($date_ansi_key)" }
+		# Evaluate absence amount
+		# absence_arr($date_ansi_key) is list of lists
+		set total_absence 0
 		foreach absence_list_item $absence_arr($date_ansi_key) {
-                        # Absences are stored as days/fractions of a day
-                        # Evaluate total absence in UoM: 'Hours'
-		    if { 1 < [expr [lindex $absence_list_item 0] + 0] } {
-                            # We assume that absences with a total (total_days) > 1 are always full day absences
+		    ns_log NOTICE "intranet-reporting-procs::im_report_render_custom:: "
+		    # Evaluate total absence in UoM: 'Hours'
+		    if { 1 <= [expr [lindex $absence_list_item 0] + 0] } {
+			# We assume that absences with a total (total_days) >= 1 are always full day absences
 			set total_absence [expr $total_absence + $timesheet_hours_per_day]
 		    } else {
-                            # Single absences might be fraction of day
-			set total_absence [expr [expr $timesheet_hours_per_day + 0] * [expr [lindex $absence_list_item 0]]]
+			# Single absences might be fraction of day
+			set total_absence [expr ([expr $timesheet_hours_per_day + 0] * [expr [lindex $absence_list_item 0] + 0 ]) + $total_absence]
 		    }
 		}
-
 		if { "html" == $output_format } {
-                        set value "<a href='/intranet-timesheet2/absences?view_name=absence_list_home&user_selection=$new_value"
-                        append value "&timescale=start_stop&start_date=$date_ansi_key&end_date=$date_ansi_key' title='$absence_arr($date_ansi_key)'><strong>$total_absence</strong></a>"
+		    set value "<a href='/intranet-timesheet2/absences?view_name=absence_list_home&user_selection=$new_value"
+		    append value "&timescale=start_stop&start_date=$date_ansi_key&end_date=$date_ansi_key' title='$absence_arr($date_ansi_key)'><strong>$total_absence</strong></a>"
 		} else {
-                        set value "$total_absence"
+		    set value "$total_absence"
 		}
 		set total_sum_absences [expr $total_sum_absences + [expr $total_absence + 0]]
 	    } else {
@@ -154,9 +153,9 @@ ad_proc -private im_report_render_custom {
 	    lappend absence_line $value
 	    incr ctr
 	}
-
+	
 	# For column "hours total"
-	lappend absence_line "&nbsp;"
+	lappend absence_line "$total_sum_absences"
 
 	set footer_record [list \
 	    line $absence_line \
@@ -942,12 +941,12 @@ db_foreach sql $sql {
                     foreach absence_list_item $absence_arr($date_ansi_key) {
                         # Absences are stored as days/fractions of a day
                         # Evaluate total absence in UoM: 'Hours'
-                        if { 1 < [expr [lindex $absence_list_item 0] + 0] } {
+                        if { 1 <= [expr [lindex $absence_list_item 0] + 0] } {
                             # We assume that absences with a total (total_days) > 1 are always full day absences
                             set total_absence [expr $total_absence + $timesheet_hours_per_day]
                         } else {
                             # Single absences might be fraction of day
-                            set total_absence [expr [expr $timesheet_hours_per_day + 0] * [expr [lindex $absence_list_item 0]]]
+                            set total_absence [expr ([expr $timesheet_hours_per_day + 0] * [expr [lindex $absence_list_item 0]]) + $total_absence]
                         }
                     }
 
@@ -981,6 +980,18 @@ db_foreach sql $sql {
 	}
 
 	im_report_update_counters -counters $counters
+
+	set absence_array_list [im_report_render_custom \
+            -output_format $output_format \
+            -group_def $report_def \
+            -last_value_array_list $last_value_list \
+            -start_date $start_date \
+            -end_date $end_date \
+            -level_of_detail $level_of_detail \
+            -row_class $class \
+            -cell_class $class \
+            -absences_list $absences_list
+            ]
 	
 	set last_value_list [im_report_render_header \
 	    -output_format $output_format \
@@ -991,18 +1002,6 @@ db_foreach sql $sql {
 	    -cell_class $class
         ]
 		
-        set absence_array_list [im_report_render_custom \
-	    -output_format $output_format \
-	    -group_def $report_def \
-	    -last_value_array_list $last_value_list \
-	    -start_date $start_date \
-            -end_date $end_date \
-	    -level_of_detail $level_of_detail \
-	    -row_class $class \
-	    -cell_class $class \
-	    -absences_list $absences_list
-        ]
-
         set footer_array_list [im_report_render_footer \
 	    -output_format $output_format \
 	    -group_def $report_def \
