@@ -50,12 +50,14 @@ begin
 		-- Track reminders  
 		create sequence im_timesheet_reminders_stats_seq;
 		create table im_timesheet_reminders_stats (
-		        id   		integer
-                			primary key,
-			event_id	integer
-					constraint im_timesheet_reminders_stats_event_fk references acs_events,
-			triggered	timestamp,
-			notes		text
+		        id   			integer
+                				primary key,
+			event_id		integer
+						constraint im_timesheet_reminders_stats_event_fk references acs_events,
+			triggered		timestamp,
+			set_off_seconds		integer,	 
+			timespan_found_p	boolean,
+			notes			text
 		);
 		ALTER TABLE im_timesheet_reminders_stats ALTER COLUMN id SET DEFAULT NEXTVAL('im_timesheet_reminders_stats_seq');
         END IF;
@@ -222,3 +224,28 @@ begin
 
 end;$BODY$ LANGUAGE 'plpgsql';
 
+-- Create menu titem 
+CREATE OR REPLACE FUNCTION inline_0 ()
+RETURNS INTEGER AS $BODY$
+
+declare
+	v_foo integer;
+begin
+
+	select im_new_menu(
+               'intranet-timesheet2',
+	       'timesheet-monthly-hours-absences-reminder',
+	       'Timesheet - Monthly View - Send Reminders',
+	       '/intranet-timesheet-reminders/timesheet-monthly-hours-absences-reminder',
+	       400,
+	       'reporting-timesheet',
+               null
+	) into v_foo;
+
+	SELECT im_new_menu_perms('timesheet-monthly-hours-absences-reminder', 'Senior Managers') into v_foo;
+	return 0;
+
+end;$BODY$ LANGUAGE 'plpgsql';
+
+SELECT inline_0 ();
+DROP FUNCTION inline_0 ();
