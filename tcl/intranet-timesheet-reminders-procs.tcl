@@ -264,12 +264,13 @@ ad_proc -public im_user_absences_hours_accounted_for {
     #               - Bank holiday during vacation 
    
     set hours_accounted_for_absences 0
-    set sql "select * from im_absences_get_absences_for_user_duration(:employee_id, :period_start_date, :period_end_date, null) AS (absence_date date, absence_type_id int, absence_id int, duration_days numeric)" 
-
     set absences_str "" 
+
+    set sql "select * from im_absences_get_absences_for_user_duration(:employee_id, :period_start_date, :period_end_date, null) AS (absence_date date, absence_type_id int, absence_id int, duration_days numeric)" 
     db_foreach r $sql {
-	# Build String 
+	# Build href string 
 	append absences_str "<a href='${system_url}intranet-timesheet2/absences/new?form_mode=display&absence_id=$absence_id'>[im_category_from_id $absence_type_id]</a>: $duration_days [lang::message::lookup "" intranet-timesheet-reminders.Days "day(s)"]</a><br>" 
+
 	# Evaluate hours to add 
         if { $absence_type_id == [im_user_absence_type_bank_holiday] || $absence_type_id == [im_user_absence_type_vacation] } {
             # Daily absences
@@ -301,10 +302,10 @@ ad_proc -public im_user_absences_hours_accounted_for {
 	set hours_accounted_for_absences [expr $hours_accounted_for_absences + $value]
     }
 
-    # Calculate target hours: 
     set working_days [db_string get_data "select count(*) from im_absences_working_days_period_weekend_only (:period_start_date, :period_end_date) as (weekend_date date)" -default 0]
     # Hours w/o absences 
     set target_hours [expr $hours_per_day * ($availability/100) * $working_days] 
+
     # Hours considering absences 
     # set target_hours [expr $target_hours - $hours_accounted_for_absences]
 
@@ -361,18 +362,22 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
 
 	set report_url "${system_url}intranet-timesheet-reminders/timesheet-monthly-hours-absences-reminder?user_id=$key&start_date=$period_start_date&end_date=$period_end_date"
 
+	set diff [expr ($hours_absences + $hours_logged) - $target_hours]
+	if { $diff < 0 } { set diff "<span style='color:red'>$diff</span>" }
+
 	append user_record_html "
 	       <tr>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$employee_name</td>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]<br>$absence_str</td>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_logged</td>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$target_hours [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
-		<td style=\"border: 1px solid grey;vertical-align:text-top;\">[expr ($hours_absences + $hours_logged) - $target_hours] [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$diff</td>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\"><a href='$report_url'>[lang::message::lookup "" intranet-timesheet-reminders.ViewDetails "View Details"]</a></td>
 		</tr>"
     }
 
     set total_diff [expr ($total_hours_logged + $total_hours_absences) - $total_target_hours]
+    if { $total_diff < 0 } { set total_diff "<span style='color:red'>$total_diff</span>" }
     set url_all_users "${system_url}/intranet-timesheet-reminders/timesheet-monthly-hours-absences-reminder?user_id=[join $url_user_ids "&user_id="]&start_date=$period_start_date&end_date=$period_end_date"
 
     return "
