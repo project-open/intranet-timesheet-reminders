@@ -269,32 +269,32 @@ ad_proc -public im_user_absences_hours_accounted_for {
     set sql "select * from im_absences_get_absences_for_user_duration(:employee_id, :period_start_date, :period_end_date, null) AS (absence_date date, absence_type_id int, absence_id int, duration_days numeric)" 
     db_foreach r $sql {
 
-	# Formatting 
-	set duration_days [lc_numeric $duration_days "%.2f" [lang::user::locale]]
-
-	# Build href string 
-	append absences_str "<a href='${system_url}intranet-timesheet2/absences/new?form_mode=display&absence_id=$absence_id'>[im_category_from_id $absence_type_id]</a>: $duration_days [lang::message::lookup "" intranet-timesheet-reminders.Days "day(s)"]</a><br>" 
+        # Build href string
+        set duration_days_pretty [lc_numeric $duration_days "%.2f" [lang::user::locale]]
+        append absences_str "<a href='${system_url}intranet-timesheet2/absences/new?form_mode=display&absence_id=$absence_id'>[im_category_from_id $absence_type_id]</a>: $duration_days_pretty [lang::message::lookup "" intranet-timesheet-reminders.Days "day(s)"]</a><br>"
 
 	# Evaluate hours to add 
-        if { $absence_type_id == [im_user_absence_type_bank_holiday] || $absence_type_id == [im_user_absence_type_vacation] } {
-            # Daily absences
-	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Daily absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
-            set hours_to_add [expr $hours_accounted_for_absences + [expr $hours_per_day * ($availability/100)]]
-        } else {
-            # Effective duration
-	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Effective absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
-            set hours_to_add [expr $hours_per_day * $duration_days]
-        }
+        # if { $absence_type_id == [im_user_absence_type_bank_holiday] || $absence_type_id == [im_user_absence_type_vacation] } {
+        #    # Daily absences
+	#    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Daily absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
+        #    set hours_to_add [expr $hours_accounted_for_absences + [expr $hours_per_day * ($availability/100)]]
+        # } else {
+        #    # Effective duration
+	#    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Effective absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
+        #    set hours_to_add [expr $hours_per_day * $duration_days]
+        # }
+
+	set hours_to_add [expr $hours_per_day * $duration_days]
 
 	# Handle multiple absences per day 
 	if { [info exists absence_array($absence_date)] } {
 	    set absence_array($absence_date) [expr $absence_array($absence_date) + $hours_to_add]
             ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: absence_array($absence_date): $absence_array($absence_date)"
 	    # Avoid absences > 1 day 
-	    if { $absence_array($absence_date) > 1 } { 
-		ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Now cutting total absence down to '1' -  absence_array($absence_date: $absence_array($absence_date)" 
-		set absence_array($absence_date) 1 
-	    }
+	    # if { $absence_array($absence_date) > 1 } { 
+	    #	ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Now cutting total absence down to '1' -  absence_array($absence_date: $absence_array($absence_date)" 
+	    #	set absence_array($absence_date) 1 
+	    # }
 	} else {
 	    set absence_array($absence_date) $hours_to_add 
 	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: New absence: absence_array($absence_date): $absence_array($absence_date)"
@@ -342,6 +342,7 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     set total_hours_target 0 
     set total_hours_logged 0 
     set total_hours_absences 0 
+    set total_hours_and_absences 0
     set url_user_ids [list]
 
     # array set mail_body_user_records $user_records_list 
@@ -358,17 +359,22 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
 	set hours_logged [lindex $hours 1]
 	set hours_target [lindex $hours 0]
         set hours_absences [lindex $hours 2]
-        set absence_str [lindex $hours 3]
+       
+	set absence_str [lindex $hours 3]
+	set hours_and_absences [expr $hours_absences + $hours_logged] 
 	set diff [expr ($hours_absences + $hours_logged) - $hours_target]
 
 	set total_hours_logged [expr $total_hours_logged + $hours_logged]
 	set total_hours_target [expr $total_hours_target + $hours_target]
 	set total_hours_absences [expr $total_hours_absences + $hours_absences]
+	set total_hours_and_absences [expr $total_hours_and_absences + $hours_logged + $hours_absences]
 
 	# Formating 
 	set hours_logged [lc_numeric $hours_logged "%.2f" $manager_locale]
 	set hours_target [lc_numeric $hours_target "%.2f" $manager_locale]
 	set hours_absences [lc_numeric $hours_absences "%.2f" $manager_locale]
+	set hours_and_absences [lc_numeric $hours_and_absences "%.2f" $manager_locale]
+
         set diff [lc_numeric $diff "%.2f" $manager_locale]
 	if { $diff < 0 } { 
 	    set diff "<span style='color:red'>$diff [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</span>" 
@@ -381,9 +387,11 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
 	append user_record_html "
 	       <tr>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$employee_name</td>
-		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$absence_str<br>[lang::message::lookup "" intranet-timesheet-reminders.Total "Total"]: $hours_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\">$absence_str</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;\" align=\"right\">$hours_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\" align=\"right\">$hours_logged [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
-		<td style=\"border: 1px solid grey;vertical-align:text-top;\" align=\"right\">$hours_target [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;background-color:#EEE;\" align=\"right\">$hours_and_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"border: 1px solid grey;vertical-align:text-top;background-color:#EEE;\" align=\"right\">$hours_target [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\" align=\"right\">$diff</td>
 		<td style=\"border: 1px solid grey;vertical-align:text-top;\"><a href='$report_url'>[lang::message::lookup "" intranet-timesheet-reminders.ViewDetails "View Details"]</a></td>
 		</tr>"
@@ -401,7 +409,8 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     set total_hours_logged [lc_numeric $total_hours_logged "%.2f" $manager_locale]
     set total_hours_target [lc_numeric $total_hours_target "%.2f" $manager_locale]
     set total_hours_absences [lc_numeric $total_hours_absences "%.2f" $manager_locale]
- 
+    set total_hours_and_absences [lc_numeric $total_hours_and_absences "%.2f" $manager_locale]
+
     set url_all_users "${system_url}/intranet-timesheet-reminders/timesheet-monthly-hours-absences-reminder?user_id=[join $url_user_ids "&user_id="]&start_date=$period_start_date&end_date=$period_end_date"
 
     return "
@@ -414,19 +423,23 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     	<tr>
 		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-core.EmployeeName "Employee Name"]</td>
     		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.Absences "Absences"]</td>
-		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.HoursLogged "Hours logged"]</td>
+    		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.TotalAbsences_Break "Total<br>Absences"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.HoursLogged "Logged"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet-reminders.TotalAccountedFor "Total<br>accounted<br>for"]</td>
 		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.Target "Target"]</td>
 		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-core.Difference " Difference"]</td>
-		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-.Links "Links"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-core.Links "Links"]</td>
 	</tr>
         $user_record_html
 	<tr>
-		<td style=\"font-weight:bold;border: 1px solid black;\">[lang::message::lookup "" intranet-timesheet-reminders.Total "Total"]</td>
-		<td style=\"font-weight:bold;border: 1px solid black;\">&nbsp;</td>
-		<td style=\"font-weight:bold;border: 1px solid black;\" align=\"right\">$total_hours_logged [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
-		<td style=\"font-weight:bold;border: 1px solid black;\" align=\"right\">$total_hours_target [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
-		<td style=\"font-weight:bold;border: 1px solid black;\" align=\"right\">$total_diff</td>
-		<td style=\"font-weight:bold;border: 1px solid black;\"><a href='$url_all_users'>[lang::message::lookup "" intranet-timesheet-reminder.ShowDetailsForAllUsers "Show details for all users"]</a></td>
+		<td style=\"font-weight:bold;border: 1px solid grey;\">[lang::message::lookup "" intranet-timesheet-reminders.Total "Total"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;\">&nbsp;</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;\">&nbsp;</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;\" align=\"right\">$total_hours_logged [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;background-color:#EEE;\" align=\"right\">$total_hours_and_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;background-color:#EEE;\" align=\"right\">$total_hours_target [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;\" align=\"right\">$total_diff</td>
+		<td style=\"font-weight:bold;border: 1px solid grey;\"><a href='$url_all_users'>[lang::message::lookup "" intranet-timesheet-reminder.ShowDetailsForAllUsers "Show details for all users"]</a></td>
 	</tr>
      </table>
     </body>
