@@ -16,12 +16,19 @@ ad_page_contract {
 }
 
 #-------------------------
-# Defaults anc Constants 
+# Defaults and Constants 
 #-------------------------
 
 set current_user_id [ad_maybe_redirect_for_registration]
 db_0or1row get_name_current_user "select first_names, last_name from persons where person_id=:current_user_id"
 set list_name_recipient [list]
+
+#-------------------------
+# Form validation
+#-------------------------
+if { ![info exists user_id] } {
+    ad_return_complaint 1 [lang::message::lookup "" intranet-timesheet-reminders.MissingUserId "To send a reminder email, please select at least one user."]
+}
 
 #-------------------------
 # Security 
