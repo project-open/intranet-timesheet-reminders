@@ -30,7 +30,7 @@ ad_page_contract {
     { from_email ""}
     { start_date "" }
     { end_date "" }
-    { test_mode_p "" }
+    { test_mode_p 0 }
 }
 
 ns_log Notice "subject='$subject'"
@@ -110,6 +110,14 @@ foreach rec $email_list {
         set hours_absences [lindex $user_ts_data_for_period 2]
         set absence_str [lindex $user_ts_data_for_period 3]
 
+	if {[catch {
+	    set difference_hours "[expr $target_hours - $hours_absences - $hours_logged]&nbsp;[lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]"
+	} err_msg]} {
+	    set difference_hours [lang::message::lookup "" intranet-timesheet-reminders.ErrorCalculatingDifference "Error calculating difference."]
+	    global errorInfo
+	    ns_log ERROR "Error intranet-timesheet-reminders/www/notify-logged-hours-2.tcl, error calculating difference_hours \n $errorInfo "    
+	}
+
 	if { $add_ts_record_to_reminders_p } {
 	    set message "$message\n\n 
 	        <table cellpadding=\"3\" cellspacing=\"3\" border=\"0\" style=\"border-collapse:collapse;\">
@@ -117,11 +125,13 @@ foreach rec $email_list {
                 <td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.Absences "Absences"]</td>
                 <td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.HoursLogged "Hours logged"]</td>
                 <td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.Target "Target"]</td>
+                <td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-core.Difference "Difference"]</td>
         	</tr>
                 <tr>
                 <td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_absences</td>
                 <td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_logged</td>
                 <td style=\"border: 1px solid grey;vertical-align:text-top;\">$target_hours [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+                <td style=\"border: 1px solid grey;vertical-align:text-top;\">$difference_hours</td>
                 </tr>
 		</table>
 	   "
@@ -140,7 +150,7 @@ foreach rec $email_list {
 	    append test_output "to_addr: [lindex $rec 1]<br>from_addr: $sender_email<br>subject: $subject<br>message: $message <br>*******<br>"
 	} 
     } errmsg]} {
-        ns_log Error "member-notify: Error sending to \"$email\": $errmsg"
+        ns_log Error "member-notify: Error sending to \"$sender_email\": $errmsg"
 	ad_return_error $subject "<p>Error sending out mail:</p><div><code>[ad_quotehtml $errmsg]</code></div>"
 	ad_script_abort
     }
