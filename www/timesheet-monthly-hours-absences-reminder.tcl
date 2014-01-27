@@ -879,6 +879,7 @@ db_foreach sql $sql {
         set number_days_ctr 0
         set number_days_ctr 0
         set number_hours_ctr 0
+	set absences_list ""
 
 	im_report_display_absence_line \
 	    -output_format $output_format \
