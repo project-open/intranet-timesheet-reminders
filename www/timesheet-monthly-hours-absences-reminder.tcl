@@ -861,9 +861,8 @@ set counters [list $number_days_counter ]
 
 set saved_user_id 0
 set number_hours_project_ctr 0
+set number_hours_ctr_pretty ""
 
-# ns_return 1 text/html "start_date: $start_date, end_date_plus_one: $end_date_plus_one"
-#ad_return_complaint xx ee
 db_foreach rec "select im_day_enumerator(to_date(:start_date,'yyyy-mm-dd'), to_date(:end_date_plus_one,'yyyy-mm-dd')) as r_date from dual" {
     set day_mm_dd "[string range $r_date 5 6][string range $r_date 8 9]"
     set month_arr($day_mm_dd) 0
