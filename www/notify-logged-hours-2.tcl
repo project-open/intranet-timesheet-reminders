@@ -119,7 +119,7 @@ foreach rec $email_list {
 	}
 
 	if { $add_ts_record_to_reminders_p } {
-	    set message "$message\n\n 
+	    set message "<pre style='font-family:verdana,arial,helvetica,sans-serif;'>$message</pre><br/> 
 	        <table cellpadding=\"3\" cellspacing=\"3\" border=\"0\" style=\"border-collapse:collapse;\">
        		<tr>
                 <td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-timesheet2.Absences "Absences"]</td>
@@ -128,8 +128,8 @@ foreach rec $email_list {
                 <td style=\"font-weight:bold;border: 1px solid grey;vertical-align:text-top;\">[lang::message::lookup "" intranet-core.Difference "Difference"]</td>
         	</tr>
                 <tr>
-                <td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_absences</td>
-                <td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_logged</td>
+                <td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_absences [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
+                <td style=\"border: 1px solid grey;vertical-align:text-top;\">$hours_logged [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
                 <td style=\"border: 1px solid grey;vertical-align:text-top;\">$target_hours [lang::message::lookup "" intranet-timesheet-reminders.HoursAbrev "h"]</td>
                 <td style=\"border: 1px solid grey;vertical-align:text-top;\">$difference_hours</td>
                 </tr>
@@ -145,7 +145,9 @@ foreach rec $email_list {
 		-to_addr [lindex $rec 1] \
 		-from_addr $sender_email \
 		-subject $subject \
-		-body $message
+		-body $message \
+                -extraheaders "" \
+                -mime_type "text/html"
 	} else {
 	    append test_output "to_addr: [lindex $rec 1]<br>from_addr: $sender_email<br>subject: $subject<br>message: $message <br>*******<br>"
 	} 
