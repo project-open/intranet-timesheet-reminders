@@ -25,16 +25,15 @@
   <td colspan="2">
 <center>
 <input type="submit" value="<%=[lang::message::lookup "" intranet-reporting.SendMail "Send Mail"]%>" />
+<!--
 <input type="checkbox" name="test_mode_p" value="1">
 <%= [lang::message::lookup "" intranet-timesheet-reminders.TestOnly "This is a test - show mail(s) in browser, do not send email"] %>
 <input type="checkbox" name="send_me_a_copy" value="1">
 <%= [lang::message::lookup "" intranet-core.Send_me_a_copy "Send me a copy"] %>
+-->
 </center>
   </td>
 </tr>
 </table>
 </form>
 </p>
-
-
-
