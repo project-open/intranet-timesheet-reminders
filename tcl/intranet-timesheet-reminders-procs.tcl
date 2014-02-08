@@ -10,7 +10,6 @@ ad_library {
 }
 
 ad_proc -public im_timesheet_scheduled_reminders_send { } {
-
 } {
 
     # This function will be excecuted by default every hour.  
@@ -34,6 +33,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 
     if {[catch {
 	set frame_start_date [clock format [expr [clock seconds] - $set_off] -format "%Y-%m-%d %H:%M:%S"]    
+	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send frame_start_date: $frame_start_date"
     } err_msg]} {
 	global errorInfo
 	ns_log Error "Error in intranet-timesheet-reminders-procs.tcl - Not able to calculate start_date.\n $errorInfo "
@@ -41,6 +41,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 	return
     }
     set frame_end_date [clock format [clock scan {-1 days} -base [clock scan $frame_start_date] ] -format "%Y-%m-%d %H:%M:%S"]
+    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Search events using frame_start_date: $frame_start_date, frame_end_date: $frame_end_date"
 
     set sql "
 	select 
@@ -63,24 +64,29 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
     set period_list [list]
 
     db_foreach r $sql {
+	 ns_log NOTICE "--- LP: intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send start_date: $start_date, name: $name, event_id: $event_id, interval_id: $interval_id"
 	# Calcluate period 
-	if { "Weekly Email Reminder" == $name } {
+	if { "Weekly Email Reminders" == $name } {
 	    # Hours from the last 7 days, starting start_date-1  
 	    set period_start_date [clock format [clock scan {-1 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
 	    set period_end_date [clock format [clock scan {-8 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"] 
+	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Weekly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"    
 	} else {
 	    # Monthly reminders - Hours for last month 
 	    set period_start_date [clock format [clock scan {-1 month} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
 	    set period_end_date [clock format [clock scan {-1 day} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]   
+            ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Monthly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"
 	}
 	lappend period_list [list $period_start_date $period_end_date $interval_id $event_id]
     }
 
     # Prevent spamming - avoid sending multiple reminders when more than one period is found 
     if { 0 == [llength $period_list] } {
+	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - No events found"
 	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p) values (null, now(), false)"
     } else {
 	# Send for first period found
+	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Sending first element of period_list: $period_list" 
 	set send_protocol [im_timesheet_send_reminders_to_supervisors [lindex [lindex $period_list 0] 0] [lindex [lindex $period_list 0] 1] 1]
 	set event_id_send [lindex [lindex $period_list 0] 3]
 	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values (:event_id_send, now(), true, :send_protocol)"
@@ -101,6 +107,10 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 } {
     Sends email reminders to supervisors
 } {
+
+    # Make sure that date format is YYYY-MM-DD
+    set period_start_date [clock format [clock scan $period_start_date] -format {%Y-%m-%d}]
+    set period_end_date [clock format [clock scan $period_end_date] -format {%Y-%m-%d}]
 
     set send_protocol "Start Date: $period_start_date, End date: $period_end_date:\n"
 
@@ -332,9 +342,10 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     Creates mail body 
     user_records_list (TargetHours HoursLogged HoursAbsences) 
 } {
+
     set system_url [parameter::get -package_id [apm_package_id_from_key acs-kernel] -parameter "SystemURL" -default ""]
     set link "/intranet-timesheet-reminders/timesheet-monthly-hours-absences"
-
+    
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: ENTERING period_start_date: $period_start_date, period_end_date: $period_end_date, manager_name: $manager_name"
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: user_records_list: $user_records_list"
     
