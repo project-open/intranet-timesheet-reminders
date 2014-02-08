@@ -140,8 +140,9 @@ ad_proc -private im_report_render_custom {
 		    }
 		}
 		if { "html" == $output_format } {
-		    set value "<a href='/intranet-timesheet2/absences?view_name=absence_list_home&user_selection=$new_value"
-		    append value "&timescale=start_stop&start_date=$date_ansi_key&end_date=$date_ansi_key' title='$absence_arr($date_ansi_key)'><strong>$total_absence</strong></a>"
+		    # set value "<a href='/intranet-timesheet2/absences?view_name=absence_list_home&user_selection=$new_value"
+		    # append value "&timescale=start_stop&start_date=$date_ansi_key&end_date=$date_ansi_key' title='$absence_arr($date_ansi_key)'><strong>$total_absence</strong></a>"
+		    set value "<span title='$absence_arr($date_ansi_key)'><strong>$total_absence</strong></span>"
 		} else {
 		    set value "$total_absence"
 		}
@@ -332,21 +333,22 @@ if {![string equal "t" $read_p]} {
 
 # Preset of user_id if no user_id had been passed 
 # Current user is at leastsupervisor of one active employee  
-if { ![info exists user_id] || 0 == $user_id || "" == $user_id } {
-    # Get all direct reports of current user 
-    set user_id [db_list count_direct_reports "select u.user_id from im_employees e, registered_users u where e.employee_id = u.user_id and e.supervisor_id = $current_user_id and u.member_state = 'approved'"]
-    if { 0 ==  [llength $user_id] } {
-	ad_return_complaint 1 [lang::message::lookup "" intranet-reporting.NoDirectReportsFound "Report not available, no direct reports found for current user"]
-    }
-
-} else {
-    # Check if user_id's passed are direct reports of current_user 
-    set direct_reports [db_list get_direct_reports "select employee_id from im_employees e, registered_users u where e.employee_id = u.user_id and e.supervisor_id = $current_user_id and u.member_state = 'approved'" ]
-    foreach rec_user_id [array names user_id] {
-	if { [lindex $direct_reports $rec_user_id] == -1 } {
-	    ad_return_complaint 1 [lang::message::lookup "" intranet-reporting.UserNotADirectReport "We found a request for a user that is not one of your direct reports, please go back and correct the error."]
+if { ![im_is_user_site_wide_or_intranet_admin $current_user_id]  } {
+    if { ![info exists user_id] || 0 == $user_id || "" == $user_id } {
+	# Get all direct reports of current user 
+	set user_id [db_list count_direct_reports "select u.user_id from im_employees e, registered_users u where e.employee_id = u.user_id and e.supervisor_id = $current_user_id and u.member_state = 'approved'"]
+	if { 0 ==  [llength $user_id] } {
+	    ad_return_complaint 1 [lang::message::lookup "" intranet-reporting.NoDirectReportsFound "Report not available, no direct reports found for current user"]
 	}
-	lappend list_name_recipient [im_name_from_user_id $rec_user_id]
+    } else {
+	# Check if user_id's passed are direct reports of current_user 
+	set direct_reports [db_list get_direct_reports "select employee_id from im_employees e, registered_users u where e.employee_id = u.user_id and e.supervisor_id = $current_user_id and u.member_state = 'approved'" ]
+	foreach rec_user_id $user_id {
+	    if { [lsearch $direct_reports $rec_user_id] == -1 } {
+		ad_return_complaint 1 [lang::message::lookup "" intranet-reporting.UserNotADirectReport "We found a request for a user that is not one of your direct reports, please go back and correct the error."]
+	    }
+	    lappend list_name_recipient [im_name_from_user_id $rec_user_id]
+	}
     }
 }
 
