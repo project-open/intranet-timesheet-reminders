@@ -9,20 +9,18 @@
     <implements-subsite-p>f</implements-subsite-p>
     <inherit-templates-p>t</inherit-templates-p>
     <auto-mount>intranet-timesheet-reminders</auto-mount>
-
-    <version name="0.1d" url="http://openacs.org/repository/download/apm/intranet-timesheet-reminders-0.1d.apm">
+    <version name="0.8d" url="http://openacs.org/repository/download/apm/intranet-timesheet-reminders-0.8d.apm">
         <owner url="mailto:info@project-open.com">Project Open Business Solutions S.L.</owner>
         <summary>Scheduling and sending email reminders</summary>
         <vendor url="www.project-open.org">Project Open Business Solutions S.L</vendor>
         <description format="text/html">Scheduling email reminders </description>
         <maturity>0</maturity>
-
         <provides url="intranet-timesheet-reminders" version="0.1d"/>
-
         <callbacks>
         </callbacks>
         <parameters>
             <parameter datatype="string"  min_n_values="1"  max_n_values="1"  name="Interval"  default="monthly" description="Allowed values are 'weekly' and 'monthly'. Monthly reminders are usually send on the first day of the following month, weekly reminders every Saturday. These default settings might have been overwritten during package initialization. For additional information please consult the online documentation."/>
+            <parameter datatype="string"  min_n_values="1"  max_n_values="1"  name="SetOff"  default="0" description="Number of seconds the sending should be delayed. Period to be regarded is always calculated based on date provided when seeding the DB. Example: System has been initiated to send weekly reminders on a Monday 11pm SystemTime. The period to be regarded starts by default one week back from that day and ends the Sunday before this day. By setting 'SetOff' to 86400 (sec) = 24h, email will be send only on Tuesday 11pm but would consider the period from Monday to Sunday. For additional information please refer to the documentation."/>
          </parameters>
     </version>
 </package>
