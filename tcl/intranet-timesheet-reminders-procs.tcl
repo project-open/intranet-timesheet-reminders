@@ -317,17 +317,17 @@ ad_proc -public im_user_absences_hours_accounted_for {
     }
 
     set working_days [db_string get_data "select count(*) from im_absences_working_days_period_weekend_only (:period_start_date, :period_end_date) as (weekend_date date)" -default 0]
+ 
     # Hours w/o absences 
-    set hours_target [expr $hours_per_day * ($availability/100) * $working_days] 
+    set hours_target [expr ($hours_per_day * ([expr {double(round(1*$availability))}]/100.0)) * $working_days] 
 
     # Hours considering absences 
     # set hours_target [expr $hours_target - $hours_accounted_for_absences]
 
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Found: hours_target: $hours_target, hours_logged: $hours_logged hours_accounted_for_absences: $hours_accounted_for_absences"
+    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: LEAVE ----- Employee: [im_name_from_user_id $employee_id] ------------------ "
 
     return [list $hours_target $hours_logged $hours_accounted_for_absences $absences_str]
-
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: LEAVE ----- Employee: [im_name_from_user_id $employee_id] ------------------ "
 } 
 
 
