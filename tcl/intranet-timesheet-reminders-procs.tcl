@@ -275,10 +275,18 @@ ad_proc -public im_user_absences_hours_accounted_for {
    
     set hours_accounted_for_absences 0
     set absences_str "" 
-
-    set sql "select * from im_absences_get_absences_for_user_duration(:employee_id, :period_start_date, :period_end_date, null) AS (absence_date date, absence_type_id int, absence_id int, duration_days numeric)" 
+    set sql "
+		select 
+			*,
+			to_char(absence_date,'D') as dow 
+		from 
+			im_absences_get_absences_for_user_duration(:employee_id, :period_start_date, :period_end_date, null) AS 
+			(absence_date date, absence_type_id int, absence_id int, duration_days numeric)
+		where 
+			to_char(absence_date,'D') <> '1' and 
+			to_char(absence_date,'D') <> '7'
+	" 
     db_foreach r $sql {
-
         # Build href string
         set duration_days_pretty [lc_numeric $duration_days "%.2f" [lang::user::locale]]
         append absences_str "<a href='${system_url}intranet-timesheet2/absences/new?form_mode=display&absence_id=$absence_id'>[im_category_from_id $absence_type_id]</a>: $duration_days_pretty [lang::message::lookup "" intranet-timesheet-reminders.Days "day(s)"]</a><br>"
