@@ -113,7 +113,7 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
     set period_start_date [clock format [clock scan $period_start_date] -format {%Y-%m-%d}]
     set period_end_date [clock format [clock scan $period_end_date] -format {%Y-%m-%d}]
 
-    set send_protocol "Start Date: $period_start_date, End date: $period_end_date:\n"
+    set send_protocol "<h1>Mail Protocol for TS Reminders</h1>Start Date: $period_start_date <br>End Date: $period_end_date"
 
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors ENTERING" 
     set from_email [parameter::get -package_id [apm_package_id_from_key acs-kernel] -parameter "HostAdministrator" -default ""]
@@ -174,9 +174,10 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 			-body $mail_body \
 			-extraheaders "" \
 			-mime_type "text/html"
-		} else {
-		    append send_protocol "to_addr: $old_manager_email, from_addr: $from_email, body: $mail_body \n\n"
-		}
+		} 
+
+		# Write protocol
+		append send_protocol "<br><br><h2>Email to: $old_manager_email:$mail_body</h2> <br><br>"
 
 		# reset manager_id & email 
 		set old_manager_id $manager_id
