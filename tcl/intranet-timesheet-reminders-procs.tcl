@@ -40,7 +40,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered,timespan_found_p,notes) values (null, now(),0,'Error calculating start_date, $errorInfo')"
 	return
     }
-    set frame_end_date [clock format [clock scan {-1 days} -base [clock scan $frame_start_date] ] -format "%Y-%m-%d %H:%M:%S"]
+    set frame_end_date [clock format [clock scan {-24 hours} -base [clock scan $frame_start_date] ] -format "%Y-%m-%d %H:%M:%S"]
     ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Search events using frame_start_date: $frame_start_date, frame_end_date: $frame_end_date"
 
     set sql "
@@ -83,7 +83,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
     # Prevent spamming - avoid sending multiple reminders when more than one period is found 
     if { 0 == [llength $period_list] } {
 	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - No events found"
-        set note_no_events "No events found. Period looked up: $frame_start_date - $frame_end_date"
+        set note_no_events "No events found. Period looked up: $frame_end_date - $frame_start_date"
         db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values (null, now(), false, :note_no_events)"
     } else {
 	# Send for first period found
