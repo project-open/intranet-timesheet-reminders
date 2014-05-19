@@ -73,8 +73,8 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Weekly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"    
 	} else {
 	    # Monthly reminders - Hours for last month 
-	    set period_start_date [clock format [clock scan {-1 day} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]   
-	    set period_end_date [clock format [clock scan {-1 month} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
+	    set period_start_date [clock format [clock scan {-1 month} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
+	    set period_end_date [clock format [clock scan {-1 day} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]   
             ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Monthly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"
 	}
 	lappend period_list [list $period_start_date $period_end_date $interval_id $event_id]
