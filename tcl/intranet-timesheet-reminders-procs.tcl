@@ -83,7 +83,8 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
     # Prevent spamming - avoid sending multiple reminders when more than one period is found 
     if { 0 == [llength $period_list] } {
 	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - No events found"
-	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p) values (null, now(), false)"
+        set note_no_events "No events found. Period looked up: $frame_start_date - $frame_end_date"
+        db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values (null, now(), false, :note_no_events)"
     } else {
 	# Send for first period found
 	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Sending first element of period_list: $period_list" 
