@@ -68,7 +68,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 	# Calcluate period 
 	if { "Weekly Email Reminders" == $name } {
 	    # Hours from the last 7 days, starting start_date-1  
-	    set period_start_date [clock format [clock scan {-8 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"] 
+	    set period_start_date [clock format [clock scan {-7 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"] 
 	    set period_end_date [clock format [clock scan {-1 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
 	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Weekly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"    
 	} else {
@@ -88,7 +88,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
     } else {
 	# Send for first period found
 	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Sending first element of period_list: $period_list" 
-	set send_protocol [im_timesheet_send_reminders_to_supervisors [lindex [lindex $period_list 0] 0] [lindex [lindex $period_list 0] 1] 1]
+	set send_protocol [im_timesheet_send_reminders_to_supervisors [lindex [lindex $period_list 0] 0] [lindex [lindex $period_list 0] 1] 0]
 	set event_id_send [lindex [lindex $period_list 0] 3]
 	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values (:event_id_send, now(), true, :send_protocol)"
 
