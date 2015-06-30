@@ -139,6 +139,12 @@ ad_proc -private im_report_render_custom {
 			set total_absence [expr ([expr $timesheet_hours_per_day + 0] * [expr [lindex $absence_list_item 0] + 0 ]) + $total_absence]
 		    }
 		}
+
+		# Apply employee availability
+		set employee_id [lindex $last_value_array_list 1]
+		set employee_availability [db_string get_employee_availability "select availability from im_employees where employee_id = :employee_id" -default 100]
+		set total_absence [format "%.2f" [expr {double(round(100*[expr $total_absence * $employee_availability / 100])) / 100}]]
+
 		if { "html" == $output_format } {
 		    # set value "<a href='/intranet-timesheet2/absences?view_name=absence_list_home&user_selection=$new_value"
 		    # append value "&timescale=start_stop&start_date=$date_ansi_key&end_date=$date_ansi_key' title='$absence_arr($date_ansi_key)'><strong>$total_absence</strong></a>"
