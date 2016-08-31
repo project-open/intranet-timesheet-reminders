@@ -33,7 +33,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 
     if {[catch {
 	set frame_start_date [clock format [expr [clock seconds] - $set_off] -format "%Y-%m-%d %H:%M:%S"]    
-	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send frame_start_date: $frame_start_date"
+	ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send frame_start_date: $frame_start_date"
     } err_msg]} {
 	global errorInfo
 	ns_log Error "Error in intranet-timesheet-reminders-procs.tcl - Not able to calculate start_date.\n $errorInfo "
@@ -41,7 +41,7 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
 	return
     }
     set frame_end_date [clock format [clock scan {-24 hours} -base [clock scan $frame_start_date] ] -format "%Y-%m-%d %H:%M:%S"]
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Search events using frame_start_date: $frame_start_date, frame_end_date: $frame_end_date"
+    ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Search events using frame_start_date: $frame_start_date, frame_end_date: $frame_end_date"
 
     set sql "
 	select 
@@ -64,30 +64,30 @@ ad_proc -public im_timesheet_scheduled_reminders_send { } {
     set period_list [list]
 
     db_foreach r $sql {
-	 ns_log NOTICE "--- LP: intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send start_date: $start_date, name: $name, event_id: $event_id, interval_id: $interval_id"
+	 ns_log Notice "--- LP: intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send start_date: $start_date, name: $name, event_id: $event_id, interval_id: $interval_id"
 	# Calcluate period 
 	if { "Weekly Email Reminders" == $name } {
 	    # Hours from the last 7 days, starting start_date-1  
 	    set period_start_date [clock format [clock scan {-7 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"] 
 	    set period_end_date [clock format [clock scan {-1 days} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
-	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Weekly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"    
+	    ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Weekly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"    
 	} else {
 	    # Monthly reminders - Hours for last month 
 	    set period_start_date [clock format [clock scan {-1 month} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]
 	    set period_end_date [clock format [clock scan {-1 day} -base [clock scan $start_date] ] -format "%Y-%m-%d %H:%M:%S"]   
-            ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Monthly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"
+            ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - 'Monthly Email Reminder' period_start_date: $period_start_date, period_end_date: $period_end_date"
 	}
 	lappend period_list [list $period_start_date $period_end_date $interval_id $event_id]
     }
 
     # Prevent spamming - avoid sending multiple reminders when more than one period is found 
     if { 0 == [llength $period_list] } {
-	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - No events found"
+	ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - No events found"
         set note_no_events "No events found. Period looked up: $frame_end_date - $frame_start_date"
         db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values (null, now(), false, :note_no_events)"
     } else {
 	# Send for first period found
-	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Sending first element of period_list: $period_list" 
+	ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_scheduled_reminders_send - Sending first element of period_list: $period_list" 
 	set send_protocol [im_timesheet_send_reminders_to_supervisors [lindex [lindex $period_list 0] 0] [lindex [lindex $period_list 0] 1] 0]
 	set event_id_send [lindex [lindex $period_list 0] 3]
 	db_dml im_timesheet_reminders_stats "insert into im_timesheet_reminders_stats (event_id, triggered, timespan_found_p, notes) values (:event_id_send, now(), true, :send_protocol)"
@@ -115,7 +115,7 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 
     set send_protocol "<h1>Mail Protocol for TS Reminders</h1>Start Date: $period_start_date <br>End Date: $period_end_date"
 
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors ENTERING" 
+    ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors ENTERING" 
     set from_email [parameter::get -package_id [apm_package_id_from_key acs-kernel] -parameter "HostAdministrator" -default ""]
 
     # get all active employees; add dummy record for easy looping  
@@ -157,10 +157,10 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 	    # Check for change of manager_id 
 	    if { $manager_id != $old_manager_id } {
 
-		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ------------------------------------------------------------------------ "
-		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ---- NEW MANAGER FOUND: $manager_name / Old: $old_manager_email "
-		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ------------------------------------------------------------------------ "
-		ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: Sending mail to: $old_manager_email; mail_body_user_records: [array get mail_body_user_records]"
+		ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ------------------------------------------------------------------------ "
+		ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ---- NEW MANAGER FOUND: $manager_name / Old: $old_manager_email "
+		ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: ------------------------------------------------------------------------ "
+		ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: Sending mail to: $old_manager_email; mail_body_user_records: [array get mail_body_user_records]"
 
 		# build mail_body 
 		set mail_body [im_timesheet_send_reminders_build_mailbody $period_start_date $period_end_date $manager_id $manager_name $manager_locale [array get mail_body_user_records]]
@@ -192,7 +192,7 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 	    set old_manager_email $manager_email
 	}
 	
-	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: Now evaluating: manager_name: $manager_name, employee_name: $employee_name"
+	ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: Now evaluating: manager_name: $manager_name, employee_name: $employee_name"
 
 	# Get amount of hours accounted for 
 	if { [info exists mail_body_user_records($employee_id)] } {
@@ -200,10 +200,10 @@ ad_proc -public im_timesheet_send_reminders_to_supervisors {
 	} else {
 	    set mail_body_user_records($employee_id) [list $employee_name [im_user_absences_hours_accounted_for $employee_id $availability $period_start_date $period_end_date]]
 	}
-	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: mail_body_user_records($employee_id): $mail_body_user_records($employee_id)"
+	ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors: mail_body_user_records($employee_id): $mail_body_user_records($employee_id)"
     }
 
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors LEAVING"
+    ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_to_supervisors LEAVING"
     if { !$do_not_send_email_p } {
 	return $send_protocol
     } else {
@@ -229,7 +229,7 @@ ad_proc -public im_user_absences_hours_accounted_for {
     set system_url [parameter::get -package_id [apm_package_id_from_key acs-kernel] -parameter "SystemURL" -default ""]
     set hours_per_day [parameter::get -package_id [apm_package_id_from_key intranet-timesheet2] -parameter "TimesheetHoursPerDay" -default 8]
 
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: ENTER ----- Employee: [im_name_from_user_id $employee_id] ------------------ "
+    ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: ENTER ----- Employee: [im_name_from_user_id $employee_id] ------------------ "
 
     # -----------------------------------------------
     # Hours logged 
@@ -257,7 +257,7 @@ ad_proc -public im_user_absences_hours_accounted_for {
     
     set hours_logged [db_string get_sum_hours_logged $sql -default 0]
 
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: hours logged: $hours_logged"
+    ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: hours logged: $hours_logged"
 
     # -----------------------------------------------
     # Absences
@@ -296,11 +296,11 @@ ad_proc -public im_user_absences_hours_accounted_for {
 	# Evaluate hours to add 
         # if { $absence_type_id == [im_user_absence_type_bank_holiday] || $absence_type_id == [im_user_absence_type_vacation] } {
         #    # Daily absences
-	#    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Daily absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
+	#    ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Daily absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
         #    set hours_to_add [expr $hours_accounted_for_absences + [expr $hours_per_day * ($availability/100)]]
         # } else {
         #    # Effective duration
-	#    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Effective absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
+	#    ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Effective absence ($absence_date): [im_category_from_id $absence_type_id]: $duration_days"
         #    set hours_to_add [expr $hours_per_day * $duration_days]
         # }
 
@@ -309,15 +309,15 @@ ad_proc -public im_user_absences_hours_accounted_for {
 	# Handle multiple absences per day 
 	if { [info exists absence_array($absence_date)] } {
 	    set absence_array($absence_date) [expr $absence_array($absence_date) + $hours_to_add]
-            ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: absence_array($absence_date): $absence_array($absence_date)"
+            ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: absence_array($absence_date): $absence_array($absence_date)"
 	    # Avoid absences > 1 day 
 	    # if { $absence_array($absence_date) > 1 } { 
-	    #	ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Now cutting total absence down to '1' -  absence_array($absence_date: $absence_array($absence_date)" 
+	    #	ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Now cutting total absence down to '1' -  absence_array($absence_date: $absence_array($absence_date)" 
 	    #	set absence_array($absence_date) 1 
 	    # }
 	} else {
 	    set absence_array($absence_date) $hours_to_add 
-	    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: New absence: absence_array($absence_date): $absence_array($absence_date)"
+	    ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: New absence: absence_array($absence_date): $absence_array($absence_date)"
 	}
     }
     
@@ -334,8 +334,8 @@ ad_proc -public im_user_absences_hours_accounted_for {
     # Hours considering absences 
     # set hours_target [expr $hours_target - $hours_accounted_for_absences]
 
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Found: hours_target: $hours_target, hours_logged: $hours_logged hours_accounted_for_absences: $hours_accounted_for_absences"
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: LEAVE ----- Employee: [im_name_from_user_id $employee_id] ------------------ "
+    ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: Found: hours_target: $hours_target, hours_logged: $hours_logged hours_accounted_for_absences: $hours_accounted_for_absences"
+    ns_log Notice "intranet-timesheet-reminders-procs::im_user_absences_hours_accounted_for: LEAVE ----- Employee: [im_name_from_user_id $employee_id] ------------------ "
 
     return [list $hours_target $hours_logged $hours_accounted_for_absences $absences_str]
 } 
@@ -356,8 +356,8 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     set system_url [parameter::get -package_id [apm_package_id_from_key acs-kernel] -parameter "SystemURL" -default ""]
     set link "/intranet-timesheet-reminders/timesheet-monthly-hours-absences"
     
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: ENTERING period_start_date: $period_start_date, period_end_date: $period_end_date, manager_name: $manager_name"
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: user_records_list: $user_records_list"
+    ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: ENTERING period_start_date: $period_start_date, period_end_date: $period_end_date, manager_name: $manager_name"
+    ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: user_records_list: $user_records_list"
     
     set user_record_html ""
     set total_hours_target 0 
@@ -369,7 +369,7 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     # array set mail_body_user_records $user_records_list 
     foreach {key value} $user_records_list {
 
-	ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: value(0): [lindex $value 0] value(1): [lindex $value 1]"
+	ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: value(0): [lindex $value 0] value(1): [lindex $value 1]"
 
 	lappend url_user_ids $key
 	set employee_name [lindex $value 0]
@@ -466,5 +466,5 @@ ad_proc -public im_timesheet_send_reminders_build_mailbody {
     </body>
     </html>
     "
-    ns_log NOTICE "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: LEAVING"
+    ns_log Notice "intranet-timesheet-reminders-procs::im_timesheet_send_reminders_build_mailbody: LEAVING"
 }
