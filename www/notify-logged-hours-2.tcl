@@ -48,7 +48,7 @@ set current_user_id [ad_maybe_redirect_for_registration]
 set ip_addr [ad_conn peeraddr]
 set locale [ad_conn locale]
 set creation_ip [ad_conn peeraddr]
-set time_date [exec date "+%s.%N"]
+set time_date [im_exec date "+%s.%N"]
 set add_ts_record_to_reminders_p [parameter::get -package_id [apm_package_id_from_key intranet-reporting] -parameter "AddTSRecordToReminders" -default 1]
 set test_output ""
 
