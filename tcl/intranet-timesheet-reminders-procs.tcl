@@ -3,7 +3,7 @@
 # Copyright (C) 2013-now Project Open Business Solutions S.L. 
 #
 # All rights reserved. Please check
-# http://www.project-open.com/license/ for details.
+# https://www.project-open.com/license/ for details.
 
 ad_library {
     @author klaus.hofeditz@project-open.com

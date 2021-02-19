@@ -1,7 +1,7 @@
 -- copyright (c) 2013 Project Open Business Solutions S.L.
 --
 -- All rights including reserved. To inquire license terms please
--- refer to http://www.project-open.com/
+-- refer to https://www.project-open.com/
 
 -------------------------------------------------------------
 -- Reminder Module 

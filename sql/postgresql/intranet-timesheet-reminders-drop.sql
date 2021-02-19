@@ -1,7 +1,7 @@
 -- copyright (c) 2013 Project Open Business Solutions S.L.
 --
 -- All rights including reserved. To inquire license terms please
--- refer to http://www.project-open.com/
+-- refer to https://www.project-open.com/
 
 -- Delete time_intervals
 delete from time_intervals where interval_id in (select interval_id from timespans where timespan_id in (select timespan_id from acs_events where name = 'Weekly Email Reminders' or name = 'Monthly Email Reminders')); 

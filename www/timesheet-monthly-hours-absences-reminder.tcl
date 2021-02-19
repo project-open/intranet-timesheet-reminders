@@ -3,7 +3,7 @@
 # Copyright (C) 2003-now Project Open Business Solutions S.L.
 #
 # All rights reserved. Please check
-# http://www.project-open.com/ for licensing details.
+# https://www.project-open.com/ for licensing details.
 
 # Changes: 
 #	- show at least one week  

@@ -3,7 +3,7 @@
 # Copyright (C) 1998 - now Project Open Business Solutions S.L. 
 
 # All rights reserved. Please check
-# http://www.project-open.com/ for licensing details.
+# https://www.project-open.com/ for licensing details.
 
 ad_page_contract {
     Purpose: Allows sending an email reminder 
